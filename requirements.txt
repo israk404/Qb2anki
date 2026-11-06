@@ -1,0 +1,4 @@
+google-genai>=1.0.0
+pillow>=10.0
+pydantic>=2.7
+tzdata; sys_platform == "win32"

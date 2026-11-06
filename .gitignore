@@ -1,0 +1,9 @@
+.env
+keys.txt
+settings.json
+.venv/
+work/
+data/
+out/
+inbox/
+__pycache__/

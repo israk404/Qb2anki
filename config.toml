@@ -1,0 +1,86 @@
+# QB to Anki: default settings.
+# Most of these can be changed on the Settings page of the app. The app saves your changes in settings.json and leaves this
+# file alone. Edit this file by hand only if you prefer to; settings.json always wins over it.
+
+[paths]
+inbox = "inbox"      # photos waiting to be read
+work  = "work"       # crops, pictures and the saved AI answers (deleting it costs requests to redo)
+data  = "data"       # the database, backups and the log
+out   = "out"        # Anki import files
+
+[gemini]
+api_key_env = "GEMINI_API_KEY"           # the key itself lives in the .env file, set from the app
+# Models change often: Settings > Models > "Find working models" tests them with your key.
+layout_model   = "gemini-3.6-flash"      # finds the pages in a photo of a book spread
+extract_models = ["gemini-3.6-flash", "gemini-3.5-flash"]   # [0] reads the pages; [1] only for the optional cross-check
+fallback_models = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]   # tried when a model is out of quota or busy
+fill_model     = "gemini-3.6-flash"      # AI answers, AI explanations and the math check
+max_output_tokens = 32000
+max_retries = 6
+request_delay_sec = 0.5
+requests_per_minute = 5                  # per model; your real limits: https://ai.dev/rate-limit
+concurrency = 2                          # parallel requests inside one photo
+media_resolution = "high"                # Google recommends "high" for reading fine text
+# thinking_level = "low"                 # optional (Gemini 3): minimal | low | medium | high. Unset = the model's default
+# Optional key rotation (see the README before using it): one key per line in keys.txt
+keys_file = "keys.txt"
+key_daily_cap = 12                       # most requests one key makes per model per day
+halt_after_blocked = 2                   # if Google blocks this many keys, everything stops
+
+[image]
+crop_pad = 0.006
+upscale = 1.0                            # e.g. 1.5 enlarges pages before sending, if small print is read badly
+jpeg_quality = 92
+layout_max_width = 2000
+
+[checks]
+proofread = true                         # AI compares each page's reading with its picture and corrects reading errors (1 request/page)
+cross_check = false                      # read every page twice with two models and flag differences (doubles the requests)
+math_check = true                        # lint every formula; AI repairs math formatting and re-reads broken solutions
+ai_fill = true                           # AI works out missing answers and writes missing explanations (always labelled)
+allowed_option_counts = [4, 5]
+stem_similarity = 0.97                   # only used by the cross-check
+option_similarity = 0.97
+explanation_similarity = 0.95
+near_duplicate_ratio = 0.92
+block_export_on_soft_flags = false
+
+[anki]
+deck_root = "Job Questions"              # cards go to "<deck_root>::<subject>"
+notetype = "Basic"                       # must exist in Anki with two fields (Front, Back)
+source_line = "exam"                     # small grey line on the back: "exam" | "full" (adds page and question number) | "none"
+page_tag = false
+
+[ui]
+port = 8765
+
+[backup]
+auto = true                              # back up the database automatically before every task that changes cards
+keep = 10                                # newest automatic backups to keep (backups you make yourself are never deleted)
+
+# How a photo is read depends on the folder it is in (inbox\<type>\):
+[profiles]
+default = "auto"                         # files placed directly in inbox\ (or inbox\<exam name>\) are treated as this type
+
+[profiles.auto]                          # the AI works out the type (book spread / single page / screenshot) and the rotation
+detect = true
+
+[profiles.book]                          # photos of the book's two-page spreads
+rotate = 90                              # degrees counter-clockwise to make the photo upright, or "auto"
+layout = true                            # find the pages first
+reader = "book"
+
+[profiles.screenshot]                    # screenshots, PDF pages, web quizzes, newspaper pictures
+rotate = 0
+layout = false                           # the whole image is one page
+reader = "general"
+
+# Subjects the AI may assign (name = what it covers). The names become deck names.
+[subjects]
+"Bangla" = "Bangla language, grammar, literature, authors, vocabulary"
+"English" = "English grammar, vocabulary, idioms, translation, English and world literature"
+"Math" = "Arithmetic, algebra, geometry, mental ability, any calculation-based question"
+"General Knowledge" = "Bangladesh affairs, international affairs, history, geography, constitution, current affairs, organisations"
+"General Science" = "Physics, chemistry, biology, general science, environment"
+"ICT" = "Computers, software, internet, digital technology"
+"Nursing & Midwifery" = "Nursing, midwifery, medical, clinical and public-health questions"
