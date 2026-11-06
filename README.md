@@ -7,7 +7,6 @@ with AI, and exports one file you import into [Anki](https://apps.ankiweb.net/).
 preparation (BCS, bank and government recruitment exams), handles Bangla and English side by side, and runs entirely on your own
 Windows PC. The only thing that leaves your computer is the page images, sent to Google's Gemini API with your own key.
 
-[![Tests](https://github.com/israk404/qb2anki/actions/workflows/tests.yml/badge.svg)](https://github.com/israk404/qb2anki/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 
@@ -111,7 +110,8 @@ pip install -r requirements.txt
 python -m unittest discover -s tests
 ```
 
-The tests replace Gemini with a fake, so they need no key or internet. If the `anki` package is installed
+The tests (about 100) replace Gemini with a fake, so they need no key or internet. They can also be run on GitHub for Windows and
+Linux with Python 3.11 to 3.13 from the **Actions** tab (**Tests → Run workflow**). If the `anki` package is installed
 (`pip install anki`), the export tests also import the generated file with Anki's own import engine.
 
 ## Privacy and security

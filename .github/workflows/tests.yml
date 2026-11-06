@@ -1,9 +1,12 @@
 name: Tests
 
+# Started by hand (Actions tab -> Tests -> Run workflow), so nothing runs or fails automatically on every push.
+# To run it on every push and pull request instead, add:
+#   push:
+#     branches: [main]
+#   pull_request:
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
