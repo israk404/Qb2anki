@@ -45,7 +45,7 @@ Optional cross-check (`checks.cross_check`): each page is read a second time by 
 | `assemble.py`, `flags.py` | Page assembly, validation and flags. |
 | `proofread.py`, `mathcheck.py`, `fill.py` | The AI quality steps described above. |
 | `db.py` | SQLite (WAL mode), migrations, duplicates, exams, usage and key state. |
-| `export_anki.py` | Tab-separated Anki import file with GUIDs, decks, tags and the embedded card design. |
+| `export_anki.py` | Tab-separated Anki import file with GUIDs, decks, tags, the embedded card design and the optional tap-to-answer script (`TAP_JS`). |
 | `review.py` | Data for the Review screen. |
 | `maintenance.py` | Backups (manual and automatic), restore, resets, debug bundle. |
 | `ui.py`, `web/` | The app: HTTP server, background jobs with a live log, and the single-page screen. |

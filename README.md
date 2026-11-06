@@ -29,6 +29,7 @@ Windows PC. The only thing that leaves your computer is the page images, sent to
   none. AI answers are marked on the card and tagged `Answer::AI`.
 - **Nothing reaches Anki silently.** Anything doubtful is held for review, shown next to its photo.
 - **Merges duplicates** across books and exams and remembers every exam a question appeared in.
+- **Tap to answer**: tap an option in Anki, it turns green or red and the card turns over to the explanation.
 - **Study-friendly cards** with light and night mode, decks per subject and exam tags.
 - **One local app controls everything**: reading, review, export, settings, keys, backups.
 - **Safe with your data**: automatic backups before every task, saved AI answers so nothing is paid for twice.
@@ -115,7 +116,7 @@ pip install -r requirements.txt
 python -m unittest discover -s tests
 ```
 
-The tests (about 100) replace Gemini with a fake, so they need no key or internet. They can also be run on GitHub for Windows and
+The tests (about 115) replace Gemini with a fake, so they need no key or internet. They can also be run on GitHub for Windows and
 Linux with Python 3.11 to 3.13 from the **Actions** tab (**Tests → Run workflow**). If the `anki` package is installed
 (`pip install anki`), the export tests also import the generated file with Anki's own import engine.
 

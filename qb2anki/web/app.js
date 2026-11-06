@@ -542,8 +542,9 @@ async function viewSettings(el) {
   el.append(h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', { text: 'Anki' }),
     h('div', { class: 'grid g3' }, field('Deck name', h('input', { type: 'text', id: 'aDeck', value: a.deck_root }), 'Cards go to “name::subject”.'),
       field('Note type', h('input', { type: 'text', id: 'aNote', value: a.notetype }), 'Must exist in Anki with two fields (Front, Back).'), field('Small grey line on the back', sl)),
+    check('aTap', 'Tap an option to answer', 'Tap an option: it turns green (right) or red (wrong) and the card turns over to the explanation and Again / Hard / Good / Easy. Turns over by itself on Anki for Windows and AnkiDroid; on iPhone press Show Answer. Cards exported before change after you export again with “Include cards exported before”.', a.tap_to_answer !== false),
     check('aPage', 'Also tag cards with their book page', '', a.page_tag),
-    h('div', { class: 'row', style: 'margin-top:12px' }, h('button', { class: 'btn primary', text: 'Save', onclick: () => save({ anki: { deck_root: $('#aDeck').value, notetype: $('#aNote').value, source_line: sl.value, page_tag: $('#aPage').checked } }) }))));
+    h('div', { class: 'row', style: 'margin-top:12px' }, h('button', { class: 'btn primary', text: 'Save', onclick: () => save({ anki: { deck_root: $('#aDeck').value, notetype: $('#aNote').value, source_line: sl.value, page_tag: $('#aPage').checked, tap_to_answer: $('#aTap').checked } }) }))));
 
   // --- subjects and photo sources
   const subj = h('textarea', { id: 'subjects', rows: 8, value: Object.entries(cfg.subjects).map(([k, v]) => k + ': ' + v).join('\n') });

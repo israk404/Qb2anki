@@ -67,7 +67,7 @@ class Format(Base):
         self.assertIn('class="qb-opt"', front)
         self.assertIn('class="qb-chip"', front)
         self.assertNotIn("<style>", back)                                               # the back shows under the front: no duplicate CSS
-        self.assertRegex(back, r'class="qb-ans"><span class="qb-l">খ</span>')
+        self.assertRegex(back, r'class="qb-ans"[^>]*><span class="qb-l">খ</span>')
         self.assertIn('class="qb-exp"', back)
 
     def test_labels_as_printed_ai_markers_and_source_line(self):
@@ -79,7 +79,7 @@ class Format(Base):
         by = {r[3].split("qb-q\">")[1].split("<")[0]: r for r in rows}
         r1, r2 = by["Q?"], by["Q two?"]
         self.assertIn('<span class="qb-l">A</span>', r1[3])
-        self.assertRegex(r1[4], r'class="qb-ans"><span class="qb-l">B</span>')
+        self.assertRegex(r1[4], r'class="qb-ans"[^>]*><span class="qb-l">B</span>')
         self.assertIn("Answer worked out by AI", r1[4])
         self.assertIn("Answer::AI", r1[5])
         self.assertIn("AI-generated explanation", r2[4])

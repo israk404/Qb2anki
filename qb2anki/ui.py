@@ -109,7 +109,7 @@ _PATCH_RULES = {
     "checks": {"proofread": bool, "fact_check": bool, "fact_policy": str, "cross_check": bool, "math_check": bool, "ai_fill": bool, "block_export_on_soft_flags": bool,
                "near_duplicate_ratio": float},
     "backup": {"auto": bool, "keep": int},
-    "anki": {"deck_root": str, "notetype": str, "source_line": str, "page_tag": bool},
+    "anki": {"deck_root": str, "notetype": str, "source_line": str, "page_tag": bool, "tap_to_answer": bool},
 }
 
 

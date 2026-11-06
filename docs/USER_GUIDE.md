@@ -156,6 +156,13 @@ different model and any difference is flagged. It doubles the reading requests, 
 5. **Import each file once.** Importing it again only reports "skipped": the cards are already there. To refresh cards after changing
    something, tick "Include cards exported before" and import again; with "Update" the cards are updated in place, with no duplicates.
 6. To start fresh in Anki: delete the `Job Questions` deck in Anki, then export with "Include cards exported before".
+7. **Tap to answer** (on by default, Settings → Anki): tap an option and it turns **green** if it is right or **red** if it is
+   wrong (the right one is always shown in green). The card turns over by itself to the explanation, and you choose Again, Hard,
+   Good or Easy as usual. Pressing Show Answer without tapping just shows the right option in green.
+   - Turns over by itself on **Anki for Windows/Mac** and **AnkiDroid**. On the **iPhone** app the colours appear at once and you
+     press Show Answer yourself. On AnkiWeb the card works as a normal card.
+   - Cards exported before you turned it on (or off) change after you export with "Include cards exported before" and import
+     with "Update". Your study progress is kept.
 
 The app only exports **approved** cards and cards with no "must check" items. Cards still waiting for review are held back.
 

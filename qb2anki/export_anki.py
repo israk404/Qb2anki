@@ -5,11 +5,17 @@ Writes a tab-separated text file that Anki imports directly (File > Import):
 The built-in "Basic" note type is used, so nothing has to be set up in Anki. The card design lives in the cards themselves
 (a small <style> block in the Front field), so it works on desktop and phone, in light and night mode.
 Front = subject + question + figure + options. Back (shown under the front by Basic) = the correct answer, then the explanation.
+
+Tap to answer (anki.tap_to_answer): a small script in the Front field makes the options tappable. Tapping one colours it
+(green right, red wrong, the right one always green) and turns the card over, where the same colours and the explanation show
+above Anki's Again / Hard / Good / Easy buttons. The card turns over by itself on Anki desktop (pycmd) and AnkiDroid
+(showAnswer); elsewhere the colours show at once and Show Answer is pressed as usual. Without scripts the card works as before.
 """
 from __future__ import annotations
 
 import csv
 import html
+import json
 import os
 import shutil
 from datetime import datetime
@@ -43,6 +49,48 @@ CSS = (
     '.qb-src{font-size:.78em;color:var(--mu);margin-top:.9em}'
 )
 
+TAP_CSS = (
+    '.qb-live .qb-opt{cursor:pointer;-webkit-tap-highlight-color:transparent}'
+    '.qb-live .qb-opt:hover{border-color:var(--ac)}'
+    '.qb .qb-opt.qb-ok{border:1.5px solid #1f9d62;background:#e2f4ea;font-weight:600}'
+    '.qb .qb-opt.qb-bad{border:1.5px solid #d14343;background:#fbe6e6}'
+    '.qb-ok .qb-l{background:#1f9d62;color:#fff}.qb-bad .qb-l{background:#d14343;color:#fff}'
+    '.qb-ok .qb-t:after{content:"  \\2713";color:#1f9d62;font-weight:700}'
+    '.qb-bad .qb-t:after{content:"  \\2717";color:#d14343;font-weight:700}'
+    '.nightMode .qb .qb-opt.qb-ok,.night_mode .qb .qb-opt.qb-ok{background:#16382a;border-color:#3fbf85}'
+    '.nightMode .qb .qb-opt.qb-bad,.night_mode .qb .qb-opt.qb-bad{background:#3d1f20;border-color:#e46a6a}'
+    '.nightMode .qb-ok .qb-l,.night_mode .qb-ok .qb-l{background:#3fbf85;color:#0e211b}'
+    '.nightMode .qb-bad .qb-l,.night_mode .qb-bad .qb-l{background:#e46a6a;color:#2a1112}'
+)
+
+# One line, ES5, no "</" inside. __ID__ and __ANS__ are filled with JSON strings.
+TAP_JS = (
+    '(function(){var id=__ID__,ans=__ANS__,K="qb_pick";function run(){'
+    'var box=document.querySelector(\'.qb-opts[data-id="\'+id+\'"]\');if(!box)return;'
+    'var opts=box.querySelectorAll(".qb-opt"),back=document.querySelector(\'.qb-ans[data-id="\'+id+\'"]\');'
+    'function put(v){window.__qbPick=v;try{sessionStorage.setItem(K,v)}catch(e){}try{localStorage.setItem(K,v)}catch(e){}}'
+    'function mine(v){return v&&v.indexOf(id+"|")===0?v.slice(id.length+1):null}'
+    'function get(){var v=mine(window.__qbPick);if(v===null){try{v=mine(sessionStorage.getItem(K))}catch(e){}}'
+    'if(v===null){try{v=mine(localStorage.getItem(K))}catch(e){}}return v}'
+    'function paint(pick){for(var i=0;i<opts.length;i++){var l=opts[i].getAttribute("data-l");'
+    'if(l===ans)opts[i].className+=" qb-ok";else if(pick!==null&&l===pick)opts[i].className+=" qb-bad"}'
+    'box.className=box.className.replace(" qb-live","")+" qb-done"}'
+    'function flip(){try{if(typeof pycmd==="function"){pycmd("ans");return}}catch(e){}'
+    'try{if(typeof window.showAnswer==="function"){window.showAnswer();return}}catch(e){}'
+    'try{if(typeof window.sendMessage2==="function"){window.sendMessage2("ankitap","midCenter")}}catch(e){}}'
+    'if(back){paint(get());back.style.display="none";return}'
+    'put("");box.className+=" qb-live";'
+    'for(var i=0;i<opts.length;i++){opts[i].onclick=function(){if(box.getAttribute("data-done"))return;'
+    'box.setAttribute("data-done","1");var l=this.getAttribute("data-l");put(id+"|"+l);paint(l);setTimeout(flip,150)}}}'
+    # the back's answer box comes after this script: wait until the page is complete (AnkiDroid loads each side as a page)
+    'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);else run()'
+    '})();'
+)
+
+
+def _js(v: str) -> str:
+    return json.dumps(v, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e")
+
 
 def esc(t: str | None) -> str:
     return html.escape(tidy(t or ""), quote=False).replace("\r", "").replace("\t", " ").replace("\n", "<br>")
@@ -63,19 +111,25 @@ def shown_label(q: dict, label: str | None) -> str:
     return label or ""
 
 
-def render_front(q: dict, fig_name: str | None) -> str:
-    opts = "".join(f'<div class="qb-opt"><span class="qb-l">{esc(o.get("shown") or o["label"])}</span>'
+def render_front(q: dict, fig_name: str | None, tap: bool = False) -> str:
+    attr = (lambda o: f' data-l="{html.escape(o["label"])}"') if tap else (lambda o: "")
+    opts = "".join(f'<div class="qb-opt"{attr(o)}><span class="qb-l">{esc(o.get("shown") or o["label"])}</span>'
                    f'<span class="qb-t">{esc(o["text"])}</span></div>' for o in q["options"])
     fig = f'<div class="qb-fig"><img src="{fig_name}"></div>' if fig_name else ""
     chip = f'<div class="qb-chip">{esc(q["subject"])}</div>' if q.get("subject") else ""
-    return (f'<style>{CSS}</style><div class="qb">{chip}<div class="qb-q">{esc(q["stem"])}</div>{fig}'
-            f'<div class="qb-opts">{opts}</div></div>')
+    if not tap:
+        return (f'<style>{CSS}</style><div class="qb">{chip}<div class="qb-q">{esc(q["stem"])}</div>{fig}'
+                f'<div class="qb-opts">{opts}</div></div>')
+    script = TAP_JS.replace("__ID__", _js(q["guid"])).replace("__ANS__", _js(q["correct_label"] or ""))
+    return (f'<style>{CSS}{TAP_CSS}</style><div class="qb">{chip}<div class="qb-q">{esc(q["stem"])}</div>{fig}'
+            f'<div class="qb-opts" data-id="{html.escape(q["guid"])}">{opts}</div></div><script>{script}</script>')
 
 
-def render_back(q: dict, source_line: str | None) -> str:
+def render_back(q: dict, source_line: str | None, tap: bool = False) -> str:
     lab = q["correct_label"]
+    did = f' data-id="{html.escape(q["guid"])}"' if tap else ""
     parts = ['<div class="qb">',
-             f'<div class="qb-ans"><span class="qb-l">{esc(shown_label(q, lab))}</span>'
+             f'<div class="qb-ans"{did}><span class="qb-l">{esc(shown_label(q, lab))}</span>'
              f'<span class="qb-t">{esc(option_text(q, lab))}</span></div>']
     fact = q.get("fact") or {}
     if q.get("answer_source") == "ai":
@@ -155,6 +209,7 @@ def export(cfg, db, include_all: bool = False, anki_media: str | None = None) ->
     deck_root = cfg.get("anki", "deck_root", "Job Questions")
     notetype = cfg.get("anki", "notetype", "Basic")
     page_tag = bool(cfg.get("anki", "page_tag", False))
+    tap = bool(cfg.get("anki", "tap_to_answer", True))
 
     out_dir = cfg.out_dir
     media_dir = out_dir / "media"
@@ -192,8 +247,8 @@ def export(cfg, db, include_all: bool = False, anki_media: str | None = None) ->
             tags.append("Check::outdated")
         if page_tag and q.get("printed_page"):
             tags.append(f"page_{q['printed_page']}")
-        rows.append([q["guid"], notetype, f"{deck_root}::{q['subject']}", render_front(q, fig_name),
-                     render_back(q, source_line_for(cfg, db, q, apps)), " ".join(tags)])
+        rows.append([q["guid"], notetype, f"{deck_root}::{q['subject']}", render_front(q, fig_name, tap),
+                     render_back(q, source_line_for(cfg, db, q, apps), tap), " ".join(tags)])
         exported_ids.append(q["id"])
 
     path = None

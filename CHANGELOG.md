@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 — 2026-11-06
+
+### Added
+- **Tap to answer** in Anki (on by default, Settings → Anki): tap an option, it turns green (right) or red (wrong), and the card
+  turns over to the explanation and Anki's Again / Hard / Good / Easy buttons. Turns over by itself on Anki desktop and AnkiDroid;
+  on other apps the colours show at once. Works inside the Basic note type, so nothing has to be set up in Anki and re-importing
+  with "Update" keeps study progress.
+
 ## 1.2.0 — 2026-11-06
 
 ### Added

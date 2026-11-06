@@ -53,6 +53,7 @@ deck_root = "Job Questions"              # cards go to "<deck_root>::<subject>"
 notetype = "Basic"                       # must exist in Anki with two fields (Front, Back)
 source_line = "exam"                     # small grey line on the back: "exam" | "full" (adds page and question number) | "none"
 page_tag = false
+tap_to_answer = true                     # tap an option: it turns green or red and the card turns over (Anki desktop, AnkiDroid)
 
 [ui]
 port = 8765

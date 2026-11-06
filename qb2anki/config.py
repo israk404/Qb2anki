@@ -66,7 +66,7 @@ DEFAULTS: dict = {
         "near_duplicate_ratio": 0.92,
         "block_export_on_soft_flags": False,
     },
-    "anki": {"deck_root": "Job Questions", "notetype": "Basic", "source_line": "exam", "page_tag": False},
+    "anki": {"deck_root": "Job Questions", "notetype": "Basic", "source_line": "exam", "page_tag": False, "tap_to_answer": True},
     "ui": {"port": 8765},
     "backup": {"auto": True, "keep": 10},
     "profiles": {
