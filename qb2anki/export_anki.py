@@ -77,8 +77,13 @@ def render_back(q: dict, source_line: str | None) -> str:
     parts = ['<div class="qb">',
              f'<div class="qb-ans"><span class="qb-l">{esc(shown_label(q, lab))}</span>'
              f'<span class="qb-t">{esc(option_text(q, lab))}</span></div>']
+    fact = q.get("fact") or {}
     if q.get("answer_source") == "ai":
         parts.append('<div class="qb-note">Answer worked out by AI (the source did not give it)</div>')
+    elif q.get("answer_source") == "ai_corrected":
+        parts.append(f'<div class="qb-note">Answer corrected by AI; the source said {esc(fact.get("source_answer_shown") or "")}</div>')
+    if fact.get("outdated") and fact.get("outdated_note"):
+        parts.append(f'<div class="qb-note"><b>Update (AI):</b> {esc(fact["outdated_note"])}</div>')
     if q.get("explanation"):
         parts.append(f'<div class="qb-exp">{esc(q["explanation"])}</div>')
     elif q.get("ai_explanation"):
@@ -181,6 +186,10 @@ def export(cfg, db, include_all: bool = False, anki_media: str | None = None) ->
         tags = [f"Subject::{slug_tag(q['subject'])}"] + [f"Exam::{slug_tag(l)}" for l in exam_labels]
         if q.get("answer_source") == "ai":
             tags.append("Answer::AI")
+        elif q.get("answer_source") == "ai_corrected":
+            tags.append("Answer::AI_corrected")
+        if (q.get("fact") or {}).get("outdated"):
+            tags.append("Check::outdated")
         if page_tag and q.get("printed_page"):
             tags.append(f"page_{q['printed_page']}")
         rows.append([q["guid"], notetype, f"{deck_root}::{q['subject']}", render_front(q, fig_name),

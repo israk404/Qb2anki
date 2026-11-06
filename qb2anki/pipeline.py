@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import assemble, fill, imaging, mathcheck, proofread, prompts
+from . import assemble, factcheck, fill, imaging, mathcheck, proofread, prompts
 from .db import quota_day
 from .errors import NoQuotaForModel, QuotaExhausted
 from .flags import finalize_status, mkflag
@@ -50,6 +50,7 @@ class Pipeline:
         self.cross_check = bool(cfg.get("checks", "cross_check", False)) and len(self.models) > 1
         self.math_check = bool(cfg.get("checks", "math_check", True))
         self.proofread = bool(cfg.get("checks", "proofread", True))
+        self.fact_check = bool(cfg.get("checks", "fact_check", True))
         self.profile_override: str | None = None       # e.g. "auto": detect the type of every photo in this run
         self.ai_fill = bool(cfg.get("checks", "ai_fill", True))
         self.profiles = cfg.raw.get("profiles", {})
@@ -240,6 +241,23 @@ class Pipeline:
         for (id_map, _), mm in zip(jobs, self._run_jobs(jobs, lambda p, l: mathcheck.run_check(self.client, model, p, l), "math2")):
             mathcheck.apply_check(id_map, mm)
 
+    def _fact_check(self, qs: list[dict]) -> None:
+        jobs = factcheck.build_jobs(qs)
+        if not jobs:
+            return
+        model = self.cfg.get("gemini", "fill_model") or self.models[0]
+        policy = self.cfg.get("checks", "fact_policy", "review")
+        self.say(f"   AI cross-check: {sum(len(m) for m, _ in jobs)} question(s) in {len(jobs)} request(s)")
+        for (id_map, _), cm in zip(jobs, self._run_jobs(jobs, lambda p, l: factcheck.run_job(self.client, model, p, l), "check")):
+            factcheck.apply_job(id_map, cm, policy)
+        held = sum(1 for q in qs if any(f["hard"] and f["code"] in ("answer_disputed", "outdated", "explanation_disputed",
+                                                                     "text_suspect") for f in q["flags"]))
+        if held:
+            self.say(f"   the AI disagreed with the source on {held} question(s): they wait in Review")
+        for q in qs:
+            if q.get("ai_explanation") and mathcheck.hard_problems(q["ai_explanation"]):
+                q["flags"].append(mkflag("ai_unsure", "the AI-written explanation has formulas that may not render: check it", hard=False))
+
     def _fill(self, qs: list[dict]) -> None:
         jobs = fill.build_jobs(qs)
         if not jobs:
@@ -290,7 +308,9 @@ class Pipeline:
             self._proofread(assembled, page_imgs)
         if self.math_check:
             self._check_math(all_qs, page_imgs)
-        if self.ai_fill:
+        if self.fact_check:
+            self._fact_check(all_qs)          # also answers and explains what the source leaves out
+        elif self.ai_fill:
             self._fill(all_qs)
         return self._store(photo_id, wd, pages, assembled, headers, page_imgs, {pi: res[f"p{pi}A"] for pi in range(len(pages))})
 
@@ -338,6 +358,7 @@ class Pipeline:
                     else:
                         q["flags"].append(mkflag("figure_box_missing", "figure present but its box was not usable"))
                 q.pop("_proof_changed", None)
+                q.pop("_fact_changed", None)
                 status = finalize_status(q, block_soft)
                 _, outcome = self.db.ingest_question(q, page_id=page_id, photo_id=photo_id, exam_id=exam_id,
                                                      printed_page=printed, status=status, near_dup_ratio=near_ratio)

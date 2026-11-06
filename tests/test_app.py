@@ -18,7 +18,8 @@ class AppTest(unittest.TestCase):
     def setUp(self):
         self.root = tmpdir(self)
         from qb2anki.config import save_settings
-        save_settings(self.root, {"checks": {"ai_fill": False, "math_check": False}})        # these tests want a card without an answer
+        save_settings(self.root, {"checks": {"ai_fill": False, "math_check": False, "fact_check": False,
+                                             "proofread": False}})                       # these tests want a card without an answer
         self.fake = FakeClient(pages={"p0": page([q(1, "Question one?", ["a", "b", "c", "d"], answer_in_explanation="খ", expl="because"),
                                                   q(2, "Question two?")], [])})
         self.app = App(self.root, client_factory=lambda cfg, db: self.fake)
@@ -173,7 +174,11 @@ class AppTest(unittest.TestCase):
         self.assertEqual(info["main_hint"], "…" + key[-4:])
         two = "\n".join("AIza" + f"{i:02d}" + "x" * 30 for i in range(3))
         self.assertEqual(self.req("/api/keys", {"text": two})[1]["count"], 3)
+        self.assertIsNone(self.req("/api/keys")[1]["rotation"])                          # "use one key" is the default
+        self.assertEqual(self.req("/api/settings", {"gemini": {"key_mode": "both"}})[0], 400)
+        self.assertEqual(self.req("/api/settings", {"gemini": {"key_mode": "rotate"}})[0], 200)
         self.assertEqual(self.req("/api/keys")[1]["rotation"]["keys"], 4)                 # the main key plus the list
+        self.assertEqual(self.req("/api/status")[1]["mode"]["key_mode"], "rotate")
         self.assertEqual(self.req("/api/keys", {"text": ""})[1]["count"], 0)
         self.assertFalse((self.root / "keys.txt").exists())
         self.assertEqual(self.req("/api/keys/reset", {})[1]["ok"], True)

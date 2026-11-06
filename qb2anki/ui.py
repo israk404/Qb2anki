@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import export_anki, fill, maintenance, models_scan, proofread
+from . import export_anki, factcheck, fill, maintenance, models_scan, proofread
 from .config import load_config, reset_settings, save_settings
 from .db import DB, quota_day, quota_reset_hint
 from .errors import GeminiError
@@ -105,8 +105,8 @@ class JobManager:
 # --------------------------------------------------------------------------- the application
 _PATCH_RULES = {
     "gemini": {"layout_model": str, "fill_model": str, "extract_models": list, "fallback_models": list, "requests_per_minute": int,
-               "concurrency": int, "key_daily_cap": int, "halt_after_blocked": int, "thinking_level": str},
-    "checks": {"proofread": bool, "cross_check": bool, "math_check": bool, "ai_fill": bool, "block_export_on_soft_flags": bool,
+               "concurrency": int, "key_daily_cap": int, "halt_after_blocked": int, "thinking_level": str, "key_mode": str},
+    "checks": {"proofread": bool, "fact_check": bool, "fact_policy": str, "cross_check": bool, "math_check": bool, "ai_fill": bool, "block_export_on_soft_flags": bool,
                "near_duplicate_ratio": float},
     "backup": {"auto": bool, "keep": int},
     "anki": {"deck_root": str, "notetype": str, "source_line": str, "page_tag": bool},
@@ -136,6 +136,10 @@ def clean_patch(patch: dict) -> dict:
                     v = str(v).strip()
             except (TypeError, ValueError):
                 raise ValueError(f"'{key}' has an invalid value") from None
+            if key == "key_mode" and v not in ("single", "rotate"):
+                raise ValueError("key_mode must be single or rotate")
+            if key == "fact_policy" and v not in factcheck.POLICIES:
+                raise ValueError("fact_policy must be review, auto or note")
             if key == "source_line" and v not in ("exam", "full", "none"):
                 raise ValueError("source_line must be exam, full or none")
             if key == "extract_models" and not v:
@@ -197,6 +201,7 @@ class App:
         env = os.environ.get(self.cfg.get("gemini", "api_key_env", "GEMINI_API_KEY")) or ""
         pool = KeyPool.from_config(self.cfg, self.db)
         return {"text": text, "count": len(parse_keys(text)), "main_hint": ("…" + env[-4:]) if env else "",
+                "mode": self.cfg.get("gemini", "key_mode", "single"),
                 "rotation": pool.summary() if pool else None}
 
     def save_keys(self, text: str) -> dict:
@@ -248,7 +253,9 @@ class App:
                 "has_key": self.has_api_key(), "rotation": self.keys_info()["rotation"],
                 "profiles": {k: v for k, v in self.cfg.raw["profiles"].items() if isinstance(v, dict)},
                 "default_profile": self.cfg.raw["profiles"].get("default", "book"),
-                "mode": {"proofread": self.pipe_flag("proofread"), "cross_check": self.pipe_flag("cross_check"),
+                "mode": {"proofread": self.pipe_flag("proofread"), "fact_check": self.pipe_flag("fact_check"),
+                         "fact_policy": self.cfg.get("checks", "fact_policy", "review"),
+                         "key_mode": self.cfg.get("gemini", "key_mode", "single"), "cross_check": self.pipe_flag("cross_check"),
                          "math_check": self.pipe_flag("math_check"), "ai_fill": self.pipe_flag("ai_fill"),
                          "auto_backup": bool(self.cfg.get("backup", "auto", True))},
                 "busy": self.jobs.running(),
@@ -385,6 +392,24 @@ class App:
                 db.close()
         return self.jobs.start("Proofreading stored cards", target)
 
+    def _job_factcheck(self, body: dict):
+        recheck = bool(body.get("recheck"))
+
+        def target(job: Job):
+            cfg, db = self.cfg, DB(self.cfg.db_path)
+            try:
+                client = self.client_factory(cfg, db)
+                self._backup_first(cfg, db, job)
+                job.say("Cross-checking stored cards: question, options, answer, up-to-dateness, explanation (1 request per 8 cards)...")
+                r = factcheck.check_database(cfg, db, client, cfg.get("gemini", "fill_model") or cfg.extract_models[0],
+                                             say=job.say, should_stop=job.stop.is_set, recheck=recheck)
+                job.say(f"Done: {r['checked']} card(s) checked; {r['held']} wait in Review because the AI disagreed with the source.")
+                Pipeline(cfg, db, client).flush_usage()
+                return r
+            finally:
+                db.close()
+        return self.jobs.start("Cross-checking stored cards", target)
+
     def _job_doctor(self, body: dict):
         def target(job: Job):
             cfg, db = self.cfg, DB(self.cfg.db_path)
@@ -428,9 +453,9 @@ class App:
         def target(job: Job):
             cfg, db = self.cfg, DB(self.cfg.db_path)
             try:
-                pool = KeyPool.from_config(cfg, db)
+                pool = KeyPool.from_config(cfg, db, any_mode=True)
                 if pool is None:
-                    job.say("No key list found: put two or more keys in Settings > Keys first.")
+                    job.say("No key list found: put two or more keys in Settings > Google AI key first.")
                     return {}
                 client = self.client_factory(cfg, db)
                 model = cfg.get("gemini", "layout_model")
@@ -624,7 +649,8 @@ def make_handler(app: App):
                 body = self._body()
                 starters = {"/api/run": app._job_run, "/api/rebuild": app._job_rebuild, "/api/fill": app._job_fill,
                             "/api/doctor": app._job_doctor, "/api/keys/check": app._job_keys_check,
-                            "/api/models/scan": app._job_models_scan, "/api/proofread": app._job_proofread}
+                            "/api/models/scan": app._job_models_scan, "/api/proofread": app._job_proofread,
+                            "/api/factcheck": app._job_factcheck}
                 if p in starters:
                     try:
                         job = starters[p](body)

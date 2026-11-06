@@ -160,11 +160,13 @@ async function viewHome(el) {
       h('p', { class: 'mute small', text: 'Free daily limits reset at ' + st.reset_hint + '. Your real limits: ai.dev/rate-limit' })),
     h('div', { class: 'card' }, h('h2', { text: 'How it reads' }),
       h('table', {}, h('tr', {}, h('td', { text: 'AI proofreads every page against the photo' }), h('td', {}, on(st.mode.proofread))),
-        h('tr', {}, h('td', { text: 'AI answers and explanations where the source has none' }), h('td', {}, on(st.mode.ai_fill))),
+        h('tr', {}, h('td', { text: 'AI cross-checks every question, answer and explanation' }), h('td', {}, on(st.mode.fact_check),
+          st.mode.fact_check ? ' ' + ({ review: 'hold disagreements', auto: 'auto-correct when sure', note: 'note only' }[st.mode.fact_policy] || '') : '')),
+        h('tr', {}, h('td', { text: 'AI answers and explanations where the source has none' }), h('td', {}, on(st.mode.ai_fill || st.mode.fact_check))),
         h('tr', {}, h('td', { text: 'Math check and repair' }), h('td', {}, on(st.mode.math_check))),
-        h('tr', {}, h('td', { text: 'Read every page twice (cross-check)' }), h('td', {}, on(st.mode.cross_check))),
+        h('tr', {}, h('td', { text: 'Read every page twice with a second model' }), h('td', {}, on(st.mode.cross_check))),
         h('tr', {}, h('td', { text: 'Automatic backup before each task' }), h('td', {}, on(st.mode.auto_backup))),
-        h('tr', {}, h('td', { text: 'Key rotation' }), h('td', {}, st.rotation ? chip(st.rotation.keys + ' keys', 'soft') : chip('off', 'grey')))),
+        h('tr', {}, h('td', { text: 'API keys' }), h('td', {}, st.rotation ? chip('rotating ' + st.rotation.keys + ' keys', 'soft') : chip(st.mode.key_mode === 'rotate' ? 'rotation needs 2+ keys' : 'one key', 'grey')))),
       h('p', { class: 'mute small', text: 'Change these in Settings.' }))));
 }
 
@@ -244,7 +246,7 @@ async function viewReview(el) {
   const c = S.status.counts;
   el.append(head('Review', 'Compare each card with its photo, fix anything wrong, then approve it.'));
   const sel = h('select', { id: 'flt', onchange: () => { R.flt = sel.value; R.cur = null; loadList().catch(fail); } },
-    [['review', `Needs review (${c.review})`], ['soft', `Exportable, with notes (${c.soft})`], ['ai', `Answer found by AI (${c.ai})`],
+    [['review', `Needs review (${c.review})`], ['disputed', `AI disagrees with the source (${c.disputed})`], ['soft', `Exportable, with notes (${c.soft})`], ['ai', `Answer by AI (${c.ai})`],
      ['all', `All cards (${c.all})`], ['approved', 'Approved'], ['rejected', 'Rejected']].map(([v, t]) => h('option', { value: v, selected: v === R.flt, text: t })));
   el.append(h('div', { class: 'review' }, h('div', { class: 'card rlist' }, h('div', { class: 'head' }, sel), h('div', { class: 'items', id: 'ritems' })), h('div', { id: 'rdetail' })));
   await loadList();
@@ -346,8 +348,28 @@ function renderDetail(q) {
   }
   if (q.alt && q.alt.explanation && q.alt.explanation !== q.explanation) form.append(h('div', { class: 'alt', text: 'Second reading: ' + q.alt.explanation }));
   if (!(q.explanation || '').trim() || q.ai_explanation) {
-    form.append(h('label', { class: 'f', text: 'AI-written explanation (shown on the card only when the source has none; clear it to remove)' }),
+    form.append(h('label', { class: 'f', text: (q.explanation || '').trim() ? 'AI-suggested explanation (not shown on the card while the source has one)' : 'AI-written explanation (shown on the card because the source has none; clear it to remove)' }),
       h('textarea', { id: 'aiexpl', value: q.ai_explanation || '', rows: 4 }));
+  }
+  if (q.fact) {
+    const f = q.fact;
+    const verdict = f.answer_shown ? `AI answer: ${f.answer_shown} (confidence ${f.confidence})` + (f.source_answer_shown ? ` · source: ${f.source_answer_shown}` : '') : 'AI answer: none of the options';
+    const lines = [verdict];
+    if (f.outdated) lines.push('May be outdated: ' + (f.outdated_note || ''));
+    if (!f.explanation_ok && f.explanation_issue) lines.push('Explanation: ' + f.explanation_issue);
+    if (!f.text_ok) lines.push('The AI thought the question text was damaged.');
+    if (f.note) lines.push('Note: ' + f.note);
+    const box = h('div', { class: 'alt' }, 'AI cross-check', h('br'), lines.join('\n'), h('br'));
+    if (f.answer && f.answer !== q.correct_label) {
+      box.append(h('button', { class: 'btn small', text: 'Use the AI’s answer', onclick: () => { const r = $$('input[name=ans]').find((x) => x.value === f.answer); if (r) r.checked = true; toast('AI answer selected. Press Save or Approve to keep it.'); } }), ' ');
+    }
+    if (f.source_answer && f.source_answer !== q.correct_label) {
+      box.append(h('button', { class: 'btn small', text: 'Use the source’s answer', onclick: () => { const r = $$('input[name=ans]').find((x) => x.value === f.source_answer); if (r) r.checked = true; toast('Source answer selected. Press Save or Approve to keep it.'); } }), ' ');
+    }
+    if (q.ai_explanation && (q.explanation || '').trim()) {
+      box.append(h('button', { class: 'btn small', text: 'Use the AI explanation', onclick: () => { $('#expl').value = q.ai_explanation; toast('AI explanation copied into the explanation. Press Save or Approve to keep it.'); } }));
+    }
+    form.append(box);
   }
   if (q.appearances.length > 1) form.append(h('div', { class: 'mute small', style: 'margin-top:8px', text: 'Also appears: ' + q.appearances.slice(1).map((a) => a.exam + ' (Q' + a.number + ', p.' + a.page + ')').join('; ') }));
   box.append(h('div', { class: 'grid g2' }, shot, form));
@@ -448,22 +470,33 @@ async function viewSettings(el) {
 
   // --- API keys
   const mainKey = h('input', { type: 'password', id: 'mainKey', placeholder: keys.main_hint ? 'A key is saved (' + keys.main_hint + '). Paste a new one to replace it.' : 'Paste your Google AI (Gemini) API key', autocomplete: 'off' });
-  const keyList = h('textarea', { id: 'keyList', rows: 6, placeholder: 'Optional: more keys, one per line (see the warning)', value: keys.text });
+  const keyList = h('textarea', { id: 'keyList', rows: 6, placeholder: 'More keys, one per line (see the warning)', value: keys.text });
   const rot = keys.rotation;
+  const modeRadio = (v, label, hint) => h('label', { class: 'chk' }, h('input', { type: 'radio', name: 'keyMode', value: v, checked: keys.mode === v }),
+    h('span', {}, label, h('small', { text: hint })));
+  const saveMode = async () => {
+    const m = $('input[name=keyMode]:checked').value;
+    try { await api('/api/settings', { gemini: { key_mode: m } }); toast(m === 'rotate' ? 'Key rotation on.' : 'Using one key.'); go('settings'); } catch (e) { fail(e); }
+  };
   el.append(h('div', { class: 'card' }, h('h2', { text: 'Google AI key' }),
     h('p', { class: 'mute', text: 'Create a free key at aistudio.google.com/apikey. It stays on this computer.' }),
     field('Your key', mainKey),
     h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn primary', text: 'Save key', onclick: async () => {
       try { const r = await api('/api/apikey', { key: mainKey.value }); mainKey.value = ''; toast('Key saved (' + r.hint + ').'); refreshStatus(); } catch (e) { fail(e); } } }),
       h('button', { class: 'btn', text: 'Check setup', onclick: () => startJob('/api/doctor') })),
-    h('h3', { style: 'margin-top:22px', text: 'Key rotation (optional, at your own risk)' }),
+    h('h3', { style: 'margin-top:22px', text: 'Which key to use' }),
+    modeRadio('single', 'Use one key', 'The key above (for a paid key, or one free key). Raise “Requests per minute” in How it works when you use a paid key.'),
+    modeRadio('rotate', 'Rotate through the key list', 'Every request goes to the key used least today for that model (the list below plus the key above).'),
+    h('div', { class: 'row' }, h('button', { class: 'btn primary', text: 'Save choice', onclick: saveMode })),
+    h('h3', { style: 'margin-top:22px', text: 'Key list for rotation (at your own risk)' }),
     h('div', { class: 'notice', text: 'Google’s terms do not allow using several projects to get around a quota, and projects have been restricted for it. Only use keys and accounts you are willing to lose. The app stops by itself if Google blocks two keys.' }),
     keyList,
     h('div', { class: 'row', style: 'margin-top:8px' },
       h('button', { class: 'btn', text: 'Save key list', onclick: async () => { try { const r = await api('/api/keys', { text: keyList.value }); toast(r.count + ' key(s) saved.'); go('settings'); } catch (e) { fail(e); } } }),
       h('button', { class: 'btn', text: 'Test every key', onclick: () => startJob('/api/keys/check') }),
       h('button', { class: 'btn', text: 'Clear invalid / blocked marks', onclick: async () => { try { await api('/api/keys/reset', {}); toast('Marks cleared.'); go('settings'); } catch (e) { fail(e); } } }),
-      rot ? h('span', { class: 'mute small', text: `${rot.keys} keys · ${rot.bad} invalid · ${rot.blocked} blocked · ${rot.calls_today} requests today` }) : h('span', { class: 'mute small', text: keys.count < 2 ? 'Off (needs two or more keys).' : '' }))));
+      rot ? h('span', { class: 'mute small', text: `${rot.keys} keys · ${rot.bad} invalid · ${rot.blocked} blocked · ${rot.calls_today} requests today` })
+        : h('span', { class: 'mute small', text: keys.mode !== 'rotate' ? `${keys.count} key(s) saved; rotation is off.` : 'Rotation needs two or more keys.' }))));
 
   // --- models
   const g = cfg.gemini;
@@ -489,15 +522,18 @@ async function viewSettings(el) {
   const num = (id, v, step) => h('input', { type: 'number', id, value: v, min: 0, step: step || 1 });
   const n = { rpm: num('nRpm', g.requests_per_minute), conc: num('nConc', g.concurrency), cap: num('nCap', g.key_daily_cap), halt: num('nHalt', g.halt_after_blocked), dup: num('nDup', c.near_duplicate_ratio, 0.01) };
   el.append(h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', { text: 'How it works' }),
-    check('cAi', 'AI fills gaps', 'Works out answers the source does not give and writes short explanations where there are none. Always labelled.', c.ai_fill),
+    check('cFact', 'AI cross-checks every question (text only)', 'Checks question and options, solves the answer itself, spots outdated facts and wrong explanations, repairs damaged text, and answers and explains what the source leaves out. About 1 request per 8 questions.', c.fact_check),
+    field('When the AI disagrees with the source', h('select', { id: 'cPolicy' }, [['review', 'Hold the card for my review (recommended)'], ['auto', 'Use the AI’s correction when it is sure (labelled on the card)'], ['note', 'Only add a note; keep the source']]
+      .map(([v, t]) => h('option', { value: v, selected: v === c.fact_policy, text: t })))),
+    check('cAi', 'AI fills gaps (only when the cross-check is off)', 'Works out missing answers and writes missing explanations. The cross-check already does this.', c.ai_fill),
     check('cProof', 'AI proofreads every page against the photo', 'Corrects misread letters and digits (৪ read as 8, …), broken formulas and ditto marks. 1 request per page. The first reading is kept.', c.proofread),
     check('cMath', 'Math check and repair', 'Tests every formula, lets the AI repair formatting, and reads a picture again when a solution is still broken.', c.math_check),
-    check('cCross', 'Read every page twice (cross-check)', 'A second model reads each page and differences are flagged. More accurate, but doubles the requests.', c.cross_check),
+    check('cCross', 'Read every page twice with a second model', 'A second model reads each page picture and differences are flagged. Doubles the reading requests.', c.cross_check),
     check('cBlock', 'Hold back cards that only have notes', 'Normally only cards with “must check” items wait for review.', c.block_export_on_soft_flags),
     h('div', { class: 'grid g4' }, field('Requests per minute (per model)', n.rpm), field('Parallel requests', n.conc), field('Daily cap per key and model', n.cap), field('Stop if this many keys are blocked', n.halt)),
     h('div', { class: 'grid g4' }, field('Duplicate similarity (0–1)', n.dup)),
     h('div', { class: 'row', style: 'margin-top:12px' }, h('button', { class: 'btn primary', text: 'Save', onclick: () => save({
-      checks: { proofread: $('#cProof').checked, ai_fill: $('#cAi').checked, math_check: $('#cMath').checked, cross_check: $('#cCross').checked, block_export_on_soft_flags: $('#cBlock').checked, near_duplicate_ratio: n.dup.value },
+      checks: { proofread: $('#cProof').checked, fact_check: $('#cFact').checked, fact_policy: $('#cPolicy').value, ai_fill: $('#cAi').checked, math_check: $('#cMath').checked, cross_check: $('#cCross').checked, block_export_on_soft_flags: $('#cBlock').checked, near_duplicate_ratio: n.dup.value },
       gemini: { requests_per_minute: n.rpm.value, concurrency: n.conc.value, key_daily_cap: n.cap.value, halt_after_blocked: n.halt.value } }) }))));
 
   // --- anki
@@ -555,10 +591,11 @@ async function viewDatabase(el) {
   el.append(h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', { text: 'Tools' }),
     h('div', { class: 'row' },
       h('button', { class: 'btn', text: 'Rebuild from saved answers', onclick: () => startJob('/api/rebuild', {}) }),
-      h('button', { class: 'btn', text: 'Let the AI fill gaps in stored cards', onclick: () => startJob('/api/fill', {}) }),
       h('button', { class: 'btn', text: 'Proofread stored cards', onclick: () => startJob('/api/proofread', {}) }),
+      h('button', { class: 'btn', text: 'Cross-check stored cards', onclick: () => startJob('/api/factcheck', {}) }),
+      h('button', { class: 'btn', text: 'Re-check all cards', onclick: () => { if (confirm('Cross-check every card again, including cards checked before? About 1 request per 8 cards.')) startJob('/api/factcheck', { recheck: true }); } }),
       h('button', { class: 'btn', text: 'Make a debug bundle', onclick: async () => { try { const r = await api('/api/bundle', {}); bundleOut.textContent = ''; bundleOut.append(h('a', { href: '/download/' + r.file, text: r.file }), ' (never contains your keys)'); } catch (e) { fail(e); } } }), bundleOut),
-    h('p', { class: 'mute small', text: 'Rebuild re-applies the current rules to photos already read, using answers saved earlier; new steps such as proofreading make new requests. Photos with approved or exported cards are skipped. Proofread stored cards checks cards read before against their page pictures (1 request per page); approved cards are not touched.' }),
+    h('p', { class: 'mute small', text: 'Rebuild re-applies the current rules to photos already read, using answers saved earlier; new steps such as proofreading make new requests. Photos with approved or exported cards are skipped. Proofread stored cards checks cards read before against their page pictures (1 request per page). Cross-check stored cards checks question, answer and explanation of cards not checked yet (1 request per 8 cards). Approved cards are never touched.' }),
     h('div', { class: 'row' }, ['inbox', 'out', 'data', 'work', 'root'].map((w) => h('button', { class: 'btn small', text: 'Open ' + (w === 'root' ? 'app' : w) + ' folder', onclick: () => api('/api/open', { what: w }).catch(fail) })))));
 
   const reset = (mode, text, need) => h('button', { class: 'btn danger', text, onclick: async () => {
@@ -582,7 +619,8 @@ async function viewHelp(el) {
       h('li', { text: 'Review: open each card that needs review, compare it with the photo, press Ctrl+Enter to approve.' }),
       h('li', { text: 'Export to Anki: create the file and import it into Anki (once per file).' }))),
     sec('What the colours mean', h('p', {}, chip('must check', 'hard'), ' the app is not sure; the card waits until you approve it. ', chip('note', 'soft'), ' worth a glance; the card is exported anyway. No label: exported as it is.'),
-      h('p', { class: 'mute', text: 'Answers the AI had to work out are marked “answer by AI” and tagged Answer::AI in Anki, so you can find and re-check them.' })),
+      h('p', { class: 'mute', text: 'Answers the AI had to work out are marked “answer by AI” and tagged Answer::AI in Anki, so you can find and re-check them.' }),
+      h('p', { class: 'mute', text: 'The AI also cross-checks every question, answer and explanation. Where it disagrees with the source, the card shows its verdict; choose “AI disagrees with the source” in Review to see only those. Settings decide whether such cards wait for you, are corrected when the AI is sure, or only get a note.' })),
     sec('Photo types', h('p', { text: 'Leave the type on “Detect automatically”: the app works out whether a photo is a book spread, a single page or a screenshot, and turns it upright (1 small request per photo). You can still choose “book” or “screenshot” yourself. An exam name you type names the exam when an image has no title.' })),
     sec('Quotas and limits', h('p', { text: 'Free Google keys allow only a few dozen requests per model per day. When the daily quota is used up the app stops cleanly and tells you when to continue (midnight Pacific time). Nothing is lost.' }),
       h('p', { text: 'Fallback models (Settings → Models) are tried automatically when one is out of quota or busy.' })),

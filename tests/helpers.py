@@ -19,7 +19,8 @@ LAYOUT = {"text_upright": True, "pages": [{"printed_page": 568, "page_box": [5, 
 
 
 def make_cfg(root: Path, **checks) -> Config:
-    base = {"ai_fill": False, "math_check": False, "cross_check": False, "proofread": False}   # tests switch features on when needed
+    base = {"ai_fill": False, "math_check": False, "cross_check": False, "proofread": False,
+            "fact_check": False}                                                          # tests switch features on when needed
     cfg = Config(root, _merge(DEFAULTS, {"checks": {**base, **checks}}))
     cfg.ensure_dirs()
     return cfg
@@ -59,10 +60,11 @@ class FakeClient:
     pool = None
 
     def __init__(self, layout=None, pages=None, pages_b=None, math_fn=None, reread_text="", fill_answer="খ", fill_conf="high",
-                 detect=None, proof_fn=None):
+                 detect=None, proof_fn=None, check_fn=None):
         self.layout, self.pages, self.pages_b = layout or LAYOUT, pages or {}, pages_b or {}
         self.detect = detect or {"kind": "spread", "rotate_ccw_degrees": "90"}
         self.proof_fn = proof_fn
+        self.check_fn = check_fn
         self.math_fn, self.reread_text = math_fn, reread_text
         self.fill_answer, self.fill_conf = fill_answer, fill_conf
         self.calls, self.usage_log = [], []
@@ -85,6 +87,12 @@ class FakeClient:
             return self.layout
         if label == "detect":
             return self.detect
+        if label.startswith("check"):
+            default = lambda it: {"id": it["id"], "text_ok": True, "answer": it.get("source_answer") or self.fill_answer,  # noqa: E731
+                                  "answer_confidence": self.fill_conf, "agrees": "yes" if it.get("source_answer") else "no_source",
+                                  "outdated": False, "explanation_ok": True,
+                                  "explanation": f"AI note {it['id']}" if it["need_explanation"] else ""}
+            return {"results": [(self.check_fn or default)(it) for it in _items(prompt)]}
         if label.startswith("proof"):
             return {"results": [r for r in (self.proof_fn(it) for it in _items(prompt)) if r] if self.proof_fn else []}
         if label.startswith("page B "):

@@ -22,6 +22,9 @@ Windows PC. The only thing that leaves your computer is the page images, sent to
   formulas and ditto marks in worked solutions, while keeping the first reading for comparison.
 - **Checks the math.** Every formula is tested so it renders in Anki; the AI repairs formatting and confirms the working reaches
   the answer, and re-reads the picture when a solution is still broken.
+- **Cross-checks every question.** A text-only AI check solves each question itself, compares with the source's answer, spots
+  outdated facts and wrong explanations, and repairs damaged text by matching it to the known MCQ. You choose whether
+  disagreements wait for you, are corrected automatically when the AI is sure, or only add a note.
 - **Fills gaps, clearly labelled.** Works out answers the source does not give and writes short explanations where there are
   none. AI answers are marked on the card and tagged `Answer::AI`.
 - **Nothing reaches Anki silently.** Anything doubtful is held for review, shown next to its photo.
@@ -39,7 +42,7 @@ flowchart LR
     C --> D[Read each page<br/>questions, answer key, title]
     D --> E[Proofread<br/>against the photo]
     E --> F[Check and<br/>repair math]
-    F --> G[AI fills missing<br/>answers and explanations]
+    F --> G[Cross-check every question<br/>answer, facts, explanation]
     G --> H[(Local database<br/>duplicates merged)]
     H --> I[Review<br/>doubtful cards]
     I --> J[Anki import file]
@@ -74,12 +77,13 @@ Free Gemini keys allow a limited number of requests per model per day (check you
 
 | Source | Requests per image (approx.) |
 |---|---|
-| Book spread (two pages) | 6: detect, find pages, read 2 pages, proofread 2 pages |
-| Screenshot or single page | 3: detect, read, proofread |
-| AI answers, explanations, math check | a few more per batch of questions that need them |
+| Book spread (two pages, ~25 questions) | about 10: detect, find pages, read and proofread 2 pages, cross-check 4 batches |
+| Screenshot or single page (~10 questions) | about 4: detect, read, proofread, cross-check |
+| Math check | a few more for worked math solutions |
 
 When a quota runs out the app stops cleanly, keeps all finished work and tells you when to continue. Fallback models are tried
-automatically when one is busy or used up. Choosing the photo type yourself, or turning proofreading off, saves requests.
+automatically when one is busy or used up. Choosing the photo type yourself, or turning proofreading or the cross-check off,
+saves requests. **Settings → Which key to use** switches between one key (for example a paid key) and rotation through a key list.
 
 ## Project structure
 
@@ -91,7 +95,8 @@ qb2anki/
 │   ├── assemble.py     turns a page reading into validated questions with flags
 │   ├── proofread.py    AI proofreading against the page picture
 │   ├── mathcheck.py    formula lint, free tidy-up, AI math check and re-read
-│   ├── fill.py         AI answers and explanations for gaps
+│   ├── factcheck.py    full text-only cross-check of every question
+│   ├── fill.py         AI answers and explanations for gaps (when the cross-check is off)
 │   ├── db.py           SQLite storage, duplicate merging, migrations
 │   ├── export_anki.py  Anki import file and card design
 │   ├── ui.py, web/     the local app (server and screen)
@@ -126,6 +131,7 @@ See [SECURITY.md](SECURITY.md) for how to report a problem.
 
 - **AI output must be checked.** Answers and explanations written by the AI are guesses, especially for Bangladesh-specific facts
   and recent events. They are always labelled so you can review them.
+- **The cross-check knows facts only up to the AI model's training date**, so very recent changes can still be missed.
 - **Key rotation is optional and at your own risk.** The app can spread requests over several API keys, but Google's terms do not
   allow using multiple projects to get around quotas, and projects have been restricted for it. Read the
   [user guide](docs/USER_GUIDE.md#6-free-quotas-fallback-models-and-key-rotation) first.

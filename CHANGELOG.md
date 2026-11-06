@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0 — 2026-11-06
+
+### Added
+- **Full AI cross-check of every question** (text only, 1 request per 8 questions): checks question and options, repairs damaged
+  text by matching it to the known MCQ, solves the answer independently, flags outdated facts with the current fact, checks the
+  explanation and writes missing ones. Replaces the separate AI-fill step when on.
+- **Disagreement policy**: hold for review (default), apply the AI's high-confidence corrections (labelled, original kept), or note only.
+- Review: "AI disagrees with the source" filter, the AI's verdict on each card, and buttons to use the AI's or the source's answer
+  and the AI explanation.
+- Cards show "Answer corrected by AI" and "Update (AI)" lines; tags `Answer::AI_corrected` and `Check::outdated`.
+- **Cross-check stored cards** and **Re-check all cards** on the Database page; `check` on the command line.
+- **Which key to use**: switch between one key (e.g. a paid key) and rotation through the key list. "Test every key" works in both modes.
+
+### Fixed
+- Key rotation now counts requests that are still running, so parallel requests spread evenly over the keys.
+
 ## 1.1.0 — 2026-11-06
 
 ### Added

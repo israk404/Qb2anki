@@ -18,7 +18,10 @@ class Review:
         elif flt == "soft":
             qs = [q for q in self.db.list_questions("q.status='ok'") if q["flags"]]
         elif flt == "ai":
-            qs = [q for q in self.db.list_questions("q.status!='rejected'") if q.get("answer_source") == "ai"]
+            qs = [q for q in self.db.list_questions("q.status!='rejected'") if q.get("answer_source") in ("ai", "ai_corrected")]
+        elif flt == "disputed":
+            codes = {"answer_disputed", "outdated", "explanation_disputed", "text_suspect", "answer_corrected", "explanation_corrected"}
+            qs = [q for q in self.db.list_questions("q.status!='rejected'") if any(f["code"] in codes for f in q["flags"])]
         elif flt == "all":
             qs = self.db.list_questions("q.status!='rejected'", limit=3000)
         else:
@@ -31,7 +34,10 @@ class Review:
         r = lambda sql: self.db.conn.execute(sql).fetchone()[0]  # noqa: E731
         return {"review": r("SELECT COUNT(*) FROM questions WHERE status='review'"),
                 "soft": r("SELECT COUNT(*) FROM questions WHERE status='ok' AND IFNULL(flags_json,'[]') NOT IN ('[]','')"),
-                "ai": r("SELECT COUNT(*) FROM questions WHERE answer_source='ai' AND status!='rejected'"),
+                "ai": r("SELECT COUNT(*) FROM questions WHERE answer_source IN ('ai','ai_corrected') AND status!='rejected'"),
+                "disputed": r("SELECT COUNT(*) FROM questions WHERE status!='rejected' AND (flags_json LIKE '%answer_disputed%' "
+                              "OR flags_json LIKE '%\"outdated\"%' OR flags_json LIKE '%explanation_disputed%' "
+                              "OR flags_json LIKE '%text_suspect%' OR flags_json LIKE '%_corrected\"%')"),
                 "all": r("SELECT COUNT(*) FROM questions WHERE status!='rejected'")}
 
     def _url(self, path: Path) -> str | None:

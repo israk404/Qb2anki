@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS appearances(
   id INTEGER PRIMARY KEY, question_id INTEGER, exam_id INTEGER, number INTEGER, printed_page INTEGER, photo_id INTEGER);
 """
 
-_JSON_COLS = {"options_json": "options", "flags_json": "flags", "alt_json": "alt", "proof_json": "proof"}
+_JSON_COLS = {"options_json": "options", "flags_json": "flags", "alt_json": "alt", "proof_json": "proof", "fact_json": "fact"}
 
 
 def now() -> str:
@@ -75,7 +75,8 @@ class DB:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")          # the app reads while a background job writes
         self.conn.executescript(SCHEMA)
-        self._ensure_columns("questions", {"answer_source": "TEXT", "explanation_original": "TEXT", "proof_json": "TEXT"})
+        self._ensure_columns("questions", {"answer_source": "TEXT", "explanation_original": "TEXT", "proof_json": "TEXT",
+                                             "fact_json": "TEXT"})
         self._ensure_columns("photos", {"profile": "TEXT", "exam_hint": "TEXT", "reader": "TEXT", "kind": "TEXT"})
         self.conn.commit()
 
@@ -206,7 +207,7 @@ class DB:
     def _row_to_q(self, r) -> dict:
         d = dict(r)
         for col, name in _JSON_COLS.items():
-            d[name] = json.loads(d.pop(col)) if d.get(col) else (None if name in ("alt", "proof") else [])
+            d[name] = json.loads(d.pop(col)) if d.get(col) else (None if name in ("alt", "proof", "fact") else [])
         return d
 
     def get_question(self, qid: int) -> dict | None:
@@ -279,13 +280,14 @@ class DB:
         cur = self.conn.execute(
             "INSERT INTO questions(guid,page_id,col_idx,number,exam_id,subject,stem,norm_stem,options_json,correct_label,key_raw,"
             "explanation,ai_explanation,figure_path,crop_path,flags_json,status,content_hash,alt_json,created_at,updated_at,"
-            "answer_source,explanation_original,proof_json)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "answer_source,explanation_original,proof_json,fact_json)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (guid, page_id, q.get("col_idx"), q["number"], exam_id, q["subject"], q["stem"], nstem, _j(q["options"]),
              q.get("correct_label"), q.get("key_raw"), q["explanation"], q.get("ai_explanation"), q.get("figure_path"),
              q.get("crop_path"), _j(flags), status, h, _j(q["alt"]) if q.get("alt") else None,
              now(), now(), q.get("answer_source"),
-             q.get("explanation_original"), _j(q["proof"]) if q.get("proof") else None))
+             q.get("explanation_original"), _j(q["proof"]) if q.get("proof") else None,
+             _j(q["fact"]) if q.get("fact") else None))
         qid = cur.lastrowid
         self.conn.execute("INSERT INTO appearances(question_id,exam_id,number,printed_page,photo_id) VALUES(?,?,?,?,?)",
                           (qid, exam_id, q["number"], printed_page, photo_id))
@@ -295,7 +297,7 @@ class DB:
     def update_question(self, qid: int, **fields):
         cols, vals = [], []
         for k, v in fields.items():
-            col = {"options": "options_json", "flags": "flags_json", "alt": "alt_json", "proof": "proof_json"}.get(k, k)
+            col = {"options": "options_json", "flags": "flags_json", "alt": "alt_json", "proof": "proof_json", "fact": "fact_json"}.get(k, k)
             if col.endswith("_json"):
                 v = _j(v) if v is not None else None
             cols.append(f"{col}=?")

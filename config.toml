@@ -22,7 +22,8 @@ requests_per_minute = 5                  # per model; your real limits: https://
 concurrency = 2                          # parallel requests inside one photo
 media_resolution = "high"                # Google recommends "high" for reading fine text
 # thinking_level = "low"                 # optional (Gemini 3): minimal | low | medium | high. Unset = the model's default
-# Optional key rotation (see the README before using it): one key per line in keys.txt
+# Which key: "single" = one key (paid or free) | "rotate" = spread requests over keys.txt (see the user guide first)
+key_mode = "single"
 keys_file = "keys.txt"
 key_daily_cap = 12                       # most requests one key makes per model per day
 halt_after_blocked = 2                   # if Google blocks this many keys, everything stops
@@ -35,9 +36,11 @@ layout_max_width = 2000
 
 [checks]
 proofread = true                         # AI compares each page's reading with its picture and corrects reading errors (1 request/page)
-cross_check = false                      # read every page twice with two models and flag differences (doubles the requests)
+fact_check = true                        # AI cross-checks every question, option, answer and explanation, text only (1 request/8 cards)
+fact_policy = "review"                   # when the AI disagrees with the source: "review" | "auto" (use sure corrections) | "note"
+cross_check = false                      # read every page PICTURE twice with two models and flag differences (doubles reading requests)
 math_check = true                        # lint every formula; AI repairs math formatting and re-reads broken solutions
-ai_fill = true                           # AI works out missing answers and writes missing explanations (always labelled)
+ai_fill = true                           # missing answers/explanations; only used when fact_check is off (the cross-check does it too)
 allowed_option_counts = [4, 5]
 stem_similarity = 0.97                   # only used by the cross-check
 option_similarity = 0.97

@@ -7,6 +7,7 @@
   rebuild   re-apply the current rules to every photo already read (uses saved answers)
   fill      let the AI fill missing answers/explanations of stored cards
   proofread let the AI proofread stored cards against their page pictures
+  check     full AI cross-check of stored cards (--all: also cards checked before)
   keys      status of keys.txt;  --check tests every key;  --reset clears the marks
   doctor    test the configured models
   models    list the Gemini models your key can use;  --test finds the ones that work
@@ -149,6 +150,17 @@ def cmd_proofread(cfg, args):
     db.close()
 
 
+def cmd_check(cfg, args):
+    from .factcheck import check_database
+    from .maintenance import auto_backup
+    db = DB(cfg.db_path)
+    auto_backup(cfg, db)
+    r = check_database(cfg, db, _client(cfg, db), cfg.get("gemini", "fill_model") or cfg.extract_models[0], say=print,
+                       recheck=args.all)
+    print(f"{r['checked']} card(s) checked; {r['held']} wait in Review because the AI disagreed with the source.")
+    db.close()
+
+
 def cmd_keys(cfg, args):
     from collections import Counter
     from .keys import KeyPool
@@ -156,9 +168,9 @@ def cmd_keys(cfg, args):
     if args.reset:
         db.clear_key_states()
         print("Cleared the 'invalid / blocked' marks and the halt.")
-    pool = KeyPool.from_config(cfg, db)
+    pool = KeyPool.from_config(cfg, db, any_mode=True)
     if pool is None:
-        print("Key rotation is OFF: no keys.txt with two or more keys next to config.toml.")
+        print("No key list: put two or more keys in keys.txt next to config.toml.")
         return
     if args.check:
         client = _client(cfg, db, False)
@@ -174,6 +186,7 @@ def cmd_keys(cfg, args):
         pool.flush(db)
         print("Result: " + ", ".join(f"{n} {st}" for st, n in counts.most_common()))
     s = pool.summary()
+    print("Rotation is " + ("ON" if str(cfg.get("gemini", "key_mode", "single")) == "rotate" else "OFF (Settings: Use one key)") + ".")
     print(f"Keys: {s['keys']} loaded, {s['bad']} invalid, {s['blocked']} blocked. Today: {s['calls_today']} requests over {s['keys_used_today']} keys.")
     db.close()
 
@@ -246,6 +259,9 @@ def main(argv=None):
     rb.set_defaults(fn=cmd_rebuild)
     sub.add_parser("fill").set_defaults(fn=cmd_fill)
     sub.add_parser("proofread").set_defaults(fn=cmd_proofread)
+    ck = sub.add_parser("check")
+    ck.add_argument("--all", action="store_true", help="also re-check cards checked before")
+    ck.set_defaults(fn=cmd_check)
     k = sub.add_parser("keys")
     k.add_argument("--check", action="store_true")
     k.add_argument("--reset", action="store_true")

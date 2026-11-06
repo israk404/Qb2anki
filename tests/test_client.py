@@ -45,7 +45,7 @@ class ClientBase(unittest.TestCase):
         self.root = tmpdir(self)
         self.cfg = make_cfg(self.root)
         self.cfg.raw["gemini"].update({"request_delay_sec": 0, "max_retries": 3, "requests_per_minute": 0, "fallback_models": [],
-                                       "key_daily_cap": 3, "halt_after_blocked": 2})
+                                       "key_daily_cap": 3, "halt_after_blocked": 2, "key_mode": "rotate"})
         # a fake clock: sleeping advances time instantly
         self.sleeps, self.now = [], [1000.0]
         orig = (gc.time.sleep, gc.time.monotonic)

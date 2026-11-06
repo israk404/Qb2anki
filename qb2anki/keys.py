@@ -62,6 +62,7 @@ class KeyPool:
         self.cap, self.halt_after_blocked, self.clock = int(cap), int(halt_after_blocked), clock
         self._lock = threading.RLock()
         self.calls: dict = defaultdict(int)          # (key id, model) -> successful requests today
+        self.inflight: dict = defaultdict(int)       # (key id, model) -> requests running right now (parallel workers)
         self.exhausted: set = set()                  # (key id, model) used up today
         self.state: dict = dict(states or {})        # key id -> (kind 'bad'|'blocked', note)
         self.cool: dict = {}                         # (key id, model) -> usable again at this clock time
@@ -77,9 +78,12 @@ class KeyPool:
 
     # ------------------------------------------------------------------ construction
     @classmethod
-    def from_config(cls, cfg, db):
-        """-> KeyPool, or None when no list of (at least two) keys is configured."""
+    def from_config(cls, cfg, db, any_mode: bool = False):
+        """-> KeyPool, or None when rotation is off (Settings: "Use one key") or fewer than two keys are configured.
+        `any_mode` ignores the switch (used to test the keys before turning rotation on)."""
         import os
+        if not any_mode and str(cfg.get("gemini", "key_mode", "single")).lower() != "rotate":
+            return None                                # Settings: "Use one key"
         path = cfg.root / cfg.get("gemini", "keys_file", "keys.txt")
         if not path.exists():
             return None
@@ -100,7 +104,7 @@ class KeyPool:
 
     def _usable(self, k: Key, model: str, now: float, ignore_cool: bool = False) -> bool:
         pair = (k.id, model)
-        return (k.id not in self.state and pair not in self.exhausted and self.calls[pair] < self.cap
+        return (k.id not in self.state and pair not in self.exhausted and self.calls[pair] + self.inflight[pair] < self.cap
                 and (ignore_cool or self.cool.get(pair, 0) <= now))
 
     def acquire(self, model: str) -> Key:
@@ -113,10 +117,11 @@ class KeyPool:
             best = None
             for idx, k in enumerate(self.keys):
                 if self._usable(k, model, now):
-                    score = (self.calls[(k.id, model)], idx)
+                    score = (self.calls[(k.id, model)] + self.inflight[(k.id, model)], idx)
                     if best is None or score < best[0]:
                         best = (score, k)
             if best:
+                self.inflight[(best[1].id, model)] += 1      # reserved until the request finishes
                 return best[1]
             bad = sum(1 for kind, _ in self.state.values() if kind == "bad")
             raise QuotaExhausted(f"all usable keys are used up for {model} today "
@@ -136,8 +141,16 @@ class KeyPool:
             return model not in self.dead_models and any(self._usable(k, model, now, ignore_cool=True) for k in self.keys)
 
     # ------------------------------------------------------------------ outcomes
+    def release(self, key: Key, model: str) -> None:
+        """The request on this key finished without success: free the reservation."""
+        with self._lock:
+            if self.inflight[(key.id, model)] > 0:
+                self.inflight[(key.id, model)] -= 1
+
     def record_success(self, key: Key, model: str) -> None:
         with self._lock:
+            if self.inflight[(key.id, model)] > 0:
+                self.inflight[(key.id, model)] -= 1
             self.calls[(key.id, model)] += 1
             self._dirty_calls[(key.id, model)] += 1
 

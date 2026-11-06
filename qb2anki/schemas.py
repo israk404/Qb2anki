@@ -175,6 +175,40 @@ PROOF_SCHEMA = {
     "required": ["results"],
 }
 
+CHECK_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "results": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "id": {"type": "STRING"},
+                    "text_ok": {"type": "BOOLEAN"},
+                    "fixed_stem": {"type": "STRING"},
+                    "fixed_options": {
+                        "type": "ARRAY",
+                        "items": {"type": "OBJECT",
+                                  "properties": {"label": {"type": "STRING"}, "text": {"type": "STRING"}},
+                                  "required": ["label", "text"]},
+                    },
+                    "answer": _nullable({"type": "STRING"}),
+                    "answer_confidence": {"type": "STRING", "enum": ["high", "medium", "low"]},
+                    "agrees": {"type": "STRING", "enum": ["yes", "no", "no_source"]},
+                    "outdated": {"type": "BOOLEAN"},
+                    "outdated_note": {"type": "STRING"},
+                    "explanation_ok": {"type": "BOOLEAN"},
+                    "explanation_issue": {"type": "STRING"},
+                    "explanation": {"type": "STRING"},
+                    "note": {"type": "STRING"},
+                },
+                "required": ["id", "text_ok", "answer_confidence", "agrees", "outdated", "explanation_ok"],
+            },
+        }
+    },
+    "required": ["results"],
+}
+
 # --------------------------------------------------------------------------- validators
 
 
@@ -317,3 +351,23 @@ class ProofItem(_M):
 
 class ProofModel(_M):
     results: list[ProofItem] = Field(default_factory=list)
+
+
+class CheckItem(_M):
+    id: str = ""
+    text_ok: bool = True
+    fixed_stem: str = ""
+    fixed_options: list[OptionModel] = Field(default_factory=list)
+    answer: Optional[str] = None
+    answer_confidence: str = "low"
+    agrees: str = ""
+    outdated: bool = False
+    outdated_note: str = ""
+    explanation_ok: bool = True
+    explanation_issue: str = ""
+    explanation: str = ""
+    note: str = ""
+
+
+class CheckModel(_M):
+    results: list[CheckItem] = Field(default_factory=list)

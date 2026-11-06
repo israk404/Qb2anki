@@ -46,6 +46,7 @@ DEFAULTS: dict = {
         "requests_per_minute": 5,
         "concurrency": 2,
         "media_resolution": "high",
+        "key_mode": "single",            # "single": one key (paid or free) | "rotate": spread requests over keys.txt
         "keys_file": "keys.txt",
         "key_daily_cap": 12,
         "halt_after_blocked": 2,
@@ -55,7 +56,9 @@ DEFAULTS: dict = {
         "proofread": True,           # AI compares each page's reading with its picture and corrects reading errors (1 request/page)
         "cross_check": False,        # read every page twice with two models and flag differences (doubles requests)
         "math_check": True,          # lint every formula; AI re-checks and repairs math explanations
-        "ai_fill": True,             # AI answers / explanations the source does not give
+        "fact_check": True,          # AI cross-checks every question, option, answer and explanation (text only, 1 request/8 cards)
+        "fact_policy": "review",     # when the AI disagrees with the source: "review" | "auto" (use high-confidence fixes) | "note"
+        "ai_fill": True,             # AI answers / explanations the source does not give (used when fact_check is off)
         "allowed_option_counts": [4, 5],
         "stem_similarity": 0.97,
         "option_similarity": 0.97,

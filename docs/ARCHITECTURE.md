@@ -26,7 +26,8 @@ For each photo in `inbox/`:
 | Assemble | 0 | `assemble.assemble_page` normalises labels and digits, joins the answer key, validates structure and raises flags. |
 | Proofread | 1 per page | `proofread.py` sends the page picture and the transcription; accepted corrections must look like corrections (similarity guards, no deleted text, no new formula errors). |
 | Math check | 1 per 6 math explanations | `mathcheck.py`: local lint, AI formatting repair and consistency check, and a focused vision re-read for anything still broken. |
-| AI fill | 1 per 8 cards with gaps | `fill.py`: missing answers (with a confidence level) and missing explanations. |
+| Cross-check | 1 per 8 questions | `factcheck.py`, text only: text sanity and repair, independent answer, outdated facts, explanation check, missing answers and explanations. The disagreement policy (`checks.fact_policy`) decides between holding the card, applying sure corrections, or a note. |
+| AI fill | 1 per 8 cards with gaps | `fill.py`, only when the cross-check is off: missing answers and explanations. |
 | Store | 0 | `db.ingest_question` merges exact duplicates (order-insensitive content hash) and records every appearance. |
 
 Optional cross-check (`checks.cross_check`): each page is read a second time by a different model and differences are flagged.
@@ -37,7 +38,7 @@ Optional cross-check (`checks.cross_check`): each page is read a second time by 
 |---|---|
 | `config.py` | Defaults → `config.toml` → `settings.json` (written by the app), plus `.env`. Stores paths relative to the app folder. |
 | `gemini_client.py` | JSON-schema requests, disk cache, retries with backoff, per-model pacing, fallback models, usage counting, optional key pool. |
-| `keys.py` | Optional key rotation: least-used key per model, daily caps, retiring invalid keys, halting after blocked keys. |
+| `keys.py` | Optional key rotation (`gemini.key_mode = "rotate"`): least-used key per model counting in-flight requests, daily caps, retiring invalid keys, halting after blocked keys. |
 | `schemas.py` | Response schemas sent to Gemini and tolerant pydantic models for what comes back (nulls, numbers, Bengali digits). |
 | `prompts.py` | All prompts. The prompt text is part of the cache key. |
 | `imaging.py` | Loading (EXIF, transparency), rotation, page-box validation, crops. |
@@ -57,7 +58,7 @@ Optional cross-check (`checks.cross_check`): each page is read a second time by 
 | `photos` | One row per image: hash, path, detected type, rotation, reader, status and error. |
 | `pages` | Printed pages of a photo, with page number, exam and the raw answer key. |
 | `exams` | Exam titles found on pages or given as folder names, with a short display label. |
-| `questions` | Cards: text, options (with labels as printed), answer and its source, explanations, flags, first readings, status. |
+| `questions` | Cards: text, options (with labels as printed), answer and its source (`key`, `printed`, `ai`, `ai_corrected`, `user`), explanations, flags, first readings (`proof_json`), the AI cross-check verdict (`fact_json`), status. |
 | `appearances` | Every place a question was seen, so duplicates remember all their exams. |
 | `usage`, `key_usage`, `key_state` | Requests per model and day, and the optional key pool's state. |
 

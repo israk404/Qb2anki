@@ -282,8 +282,12 @@ class GeminiClient:
                 time.sleep(float(self.cfg.get("gemini", "request_delay_sec", 0.5)))
                 return result, text
             except GeminiError:
+                if key is not None:
+                    self.pool.release(key, model)
                 raise
             except Exception as e:  # noqa: BLE001
+                if key is not None:
+                    self.pool.release(key, model)
                 last = e
                 retryable, fatal = self._classify(e)
                 if fatal:

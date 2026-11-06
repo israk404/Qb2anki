@@ -219,3 +219,39 @@ same order) and explanation, plus 'changes': one short note of what you correcte
 
 Items (JSON):
 {json.dumps(payload, ensure_ascii=False, indent=1)}"""
+
+
+CHECK_SYSTEM = (
+    "You are an expert examiner and fact-checker for Bangladeshi job exams (BCS, bank, government recruitment): Bangla, English, "
+    "mathematics, general knowledge, science and ICT. You verify multiple-choice questions transcribed from books and websites. "
+    "You are careful and honest: you never invent facts, and you say when you are unsure."
+)
+
+
+def check_prompt(payload: list[dict]) -> str:
+    return f"""Each item below is a multiple-choice question transcribed by OCR from an exam book, a PDF or a website. Check EVERYTHING in it,
+using your own knowledge (there is no image). For each item:
+
+1. TEXT. Does the question and do the options read as a sensible, well-formed MCQ? OCR damage looks like nonsense words, broken or
+   wrong numbers, options that belong to a different question, or a question cut in half. Ordinary spelling variants, old spellings
+   and the source's own style are NOT damage. If the text is damaged and you recognise the MCQ it must be (these questions are
+   often well known from past exams), set text_ok=false and give the repaired text in fixed_stem and fixed_options (the same labels,
+   in the same order). Repair only what is damaged, keep the wording otherwise. If it is damaged and you cannot repair it with
+   confidence, set text_ok=false and leave the fixed fields empty. If the text is fine, text_ok=true and leave them empty.
+2. ANSWER. Decide the correct option yourself, independently of 'source_answer' ('answer' = one of the option labels shown, or null if
+   none is correct or you cannot tell). For mathematics and reasoning actually solve it step by step. 'answer_confidence': high only
+   when you are sure, medium when likely, low when unsure. 'agrees': "yes" if your answer equals source_answer, "no" if it differs,
+   "no_source" if source_answer is null.
+3. UP TO DATE. Facts that change over time (office holders, counts, rankings, records, latest events, prices, laws, census figures):
+   if the answer was right when the exam was written but is no longer true, set outdated=true and in outdated_note give the current
+   fact as far as you know it, with the year. Otherwise outdated=false.
+4. EXPLANATION. If 'explanation' is not empty, is it correct and does it support the correct answer? explanation_ok=true/false; if
+   false, say what is wrong in explanation_issue. If need_explanation is true, or the explanation is wrong, write a short, correct,
+   easy explanation (2-4 sentences) in 'explanation', in the language of the question (Bangla for Bangla questions, English for English
+   ones). For mathematics show the key working in LaTeX inside \\( ... \\) with ASCII digits. Otherwise leave 'explanation' empty.
+5. 'note': one short sentence on anything else a student should know, or "".
+
+Never invent dates, names or statistics. 'id' must be copied exactly. Keep Bengali digits outside LaTeX as written.
+
+Items (JSON):
+{json.dumps(payload, ensure_ascii=False, indent=1)}"""

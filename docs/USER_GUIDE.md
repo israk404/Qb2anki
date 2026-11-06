@@ -91,6 +91,9 @@ questions, options labelled ক/খ/গ/ঘ or A/B/C/D (cards show them the way 
 - **Answer by AI**: the source gave no answer and the AI worked it out. An unsure AI answer is a *must check*; a sure one is a note.
   In Anki these cards carry the tag `Answer::AI`, so you can find and re-check them. Every AI answer is a guess to check, especially
   for Bangladesh-specific facts and recent events.
+- **AI disagrees with the source**: the cross-check found a different answer, an outdated fact, a wrong explanation or damaged text.
+  Choose **AI disagrees with the source** in the list to see only these. Each card shows the AI's verdict with buttons:
+  **Use the AI's answer**, **Use the source's answer**, **Use the AI explanation**.
 
 Review buttons: **Approve & next** (Ctrl+Enter) saves your edits and opens the next card; **Save** keeps your edits without approving;
 **Skip** moves on; **Reject** throws a card away (nothing is deleted; choose "Rejected" in the list to bring it back).
@@ -104,21 +107,40 @@ Review buttons: **Approve & next** (Ctrl+Enter) saves your edits and opens the n
 3. If the source has **no answer**, the AI works it out (it actually solves math) and the card is marked as AI-found.
 4. If the source has **no explanation**, the AI writes a short, easy one. It is shown on the card only when the source has none,
    and is labelled "AI-generated".
-5. **Proofreading** (Settings → How it works, on by default): after reading, every page's transcription is compared with the page
+5. **Full cross-check** (Settings → How it works, on by default): after reading and proofreading, every question is sent to the AI
+   as **text only** (no image), 8 questions per request. For each question the AI:
+   - checks that the question and options make sense. Damaged text is repaired by matching it to the MCQ it must be (these questions
+     are usually well known from past exams); if it cannot repair it, the card waits for you as **must check**;
+   - **solves the question itself** and compares its answer with the source's answer;
+   - checks whether the fact is **outdated** (office holders, counts, rankings, records) and gives the current fact with its year;
+   - checks that the explanation is correct, and writes one when the source has none.
+
+   What happens when it disagrees with the source is your choice (**When the AI disagrees with the source**):
+   | Choice | Effect |
+   |---|---|
+   | Hold the card for my review (default) | The source is kept; the card waits in Review with the AI's verdict. |
+   | Use the AI's correction when it is sure | High-confidence corrections are applied and labelled on the card ("Answer corrected by AI; the source said …", tag `Answer::AI_corrected`). Anything less sure still waits for you. |
+   | Only add a note | The source is kept and the card is exported, with a note. |
+
+   Outdated facts add an **Update (AI)** line to the back of the card and the tag `Check::outdated`. The AI only knows facts up to its
+   own training date, so "current" means current as far as the model knows; recent changes can still be missed.
+   Cards read before can be checked later: **Database → Cross-check stored cards** (cards checked before are skipped; **Re-check all
+   cards** checks them again). Approved cards are never touched.
+6. **Proofreading** (Settings → How it works, on by default): after reading, every page's transcription is compared with the page
    picture in one extra request. The AI corrects reading errors only: misread letters and digits (`৪` is four, not 8; `৭` is seven,
    not 9), formulas outside or broken in their LaTeX markers, ditto marks („) in worked solutions written out in full, and text
    attached to the wrong option. It never changes the source's answers, numbers or reasoning; corrections that look like a rewrite
    are refused. Corrected cards get a yellow note, and Review shows the first reading with a **Restore the first reading** button.
    Cards read before can be proofread later: **Database → Proofread stored cards** (approved cards are not touched).
-6. **Math** (turn on/off in Settings → How it works):
+7. **Math** (turn on/off in Settings → How it works):
    - every formula is tested locally for things that stop it rendering (unbalanced braces, `\frac` without arguments, ...), and
      commands written outside the math markers (`\therefore`, `\times`, …) are wrapped automatically, for free, also at export;
    - the AI repairs *formatting only* and says whether the working reaches the answer; it never changes the book's numbers;
    - if a solution is still broken, its picture is read again, focused on the solution;
    - whenever the AI changed an explanation, the **first reading is kept** and shown in Review ("Use this version" restores it).
 
-Optional **cross-check** (Settings → How it works): every page is read twice by two different models and any difference is flagged.
-It doubles the requests, so it is off by default.
+Optional **Read every page twice with a second model** (Settings → How it works): every page picture is read a second time by a
+different model and any difference is flagged. It doubles the reading requests, so it is off by default.
 
 ---
 
@@ -142,9 +164,16 @@ The app only exports **approved** cards and cards with no "must check" items. Ca
 ## 6. Free quotas, fallback models and key rotation
 
 Free Google keys allow only a few dozen requests **per model per day** (the exact numbers change; look at https://ai.dev/rate-limit).
-Reading one book spread takes about 6 requests: detect the type, find the pages, read each page, proofread each page. A screenshot
-takes about 3 (detect, read, proofread). AI answers, explanations and the math check add a few. Choosing the photo type yourself
-saves the detection request; turning proofreading off saves one request per page.
+| Step | Requests |
+|---|---|
+| Detect the photo type | 1 per photo (none if you choose the type yourself) |
+| Find the pages | 1 per book spread |
+| Read | 1 per page |
+| Proofread against the photo | 1 per page |
+| Full cross-check | 1 per 8 questions |
+| Math check | 1 per 6 math explanations, plus a picture re-read for what is still broken |
+
+A book spread with about 25 questions therefore takes about 10 requests; a screenshot with 10 questions about 4.
 
 - **Fallback models** (Settings → Models) are tried automatically when a model is out of quota or busy. Each model has its own allowance.
 - When everything is used up, the app **stops cleanly** and tells you when to continue (midnight Pacific time). Finished work is saved,
@@ -152,10 +181,18 @@ saves the detection request; turning proofreading off saves one request per page
 - The Home page shows how many requests you used today per model.
 - "High demand" errors are Google being busy, not your quota; the app retries and falls back by itself.
 
-### Key rotation (optional, at your own risk)
+### One key or key rotation
 
-If one project's quota is not enough, **Settings → Google AI key** can take a list of more keys (one per line), each from its own Google
-project. Requests then go to the key used least so far today.
+**Settings → Google AI key → Which key to use** switches between:
+
+- **Use one key**: the key saved above it. Use this for a paid key (and raise *Requests per minute* and *Parallel requests* in
+  *How it works*), or for a single free key. The key list is kept but not used.
+- **Rotate through the key list**: every request goes to the key that has been used least today for that model, counting requests
+  that are still running, so parallel requests spread evenly. The key list plus the key above are used.
+
+**Test every key** works in both modes, so you can check the list before switching.
+
+### Key rotation (at your own risk)
 
 **Read this first:** Google's terms do not allow using several projects/accounts to get around a quota, and its developer forum has
 reports of projects being restricted for it. Nothing in this app can make that safe. Only use keys and accounts you are willing to lose,
@@ -172,9 +209,12 @@ debug bundle; only the Settings page shows the key list, so you can edit it.
 | Models: pages / reader / second reader / AI | Which Gemini model does what. The second reader is only used for the cross-check. |
 | Fallback models | Tried, in order, when a model is out of quota or busy. |
 | AI proofreads every page | Compares each reading with the photo and corrects reading errors. 1 request per page. |
-| AI fills gaps | Missing answers and explanations (labelled). |
+| Which key to use | One key, or rotation through the key list. |
+| AI cross-checks every question | Text-only check of question, options, answer, up-to-dateness and explanation. 1 request per 8 questions. |
+| When the AI disagrees with the source | Hold for review / use sure corrections / note only. |
+| AI fills gaps | Missing answers and explanations (labelled); only used when the cross-check is off. |
 | Math check and repair | Formula test, AI repair, picture re-read. |
-| Read every page twice | Cross-check with a second model. Doubles requests. |
+| Read every page twice with a second model | Second reading of each page picture. Doubles reading requests. |
 | Hold back cards that only have notes | Normally only "must check" cards wait. |
 | Requests per minute / parallel requests | Pacing. Set the first to your real limit. |
 | Daily cap per key / stop if keys blocked | Only for key rotation. |
@@ -198,7 +238,7 @@ current database under its own name.
 | Button | Effect |
 |---|---|
 | Rebuild from saved answers | Re-applies the current rules to photos already read, using answers saved earlier. Steps that did not exist then (such as proofreading) make new requests. Photos with approved or exported cards are skipped. |
-| Let the AI fill gaps in stored cards | Answers and explanations for cards that still have gaps. |
+| Cross-check stored cards / Re-check all cards | Full AI cross-check of cards read before (1 request per 8 cards). Cards whose answer or text changed and that were exported can be exported again. |
 | Proofread stored cards | Proofreads cards read before against their page pictures (1 request per page). Corrected cards that were exported can be exported again; import with "Update" to refresh them in Anki. |
 | Make a debug bundle | A zip with the database, log, settings and crops, for finding a problem. Never contains keys. |
 | Allow re-exporting every card | Clears the "exported" marks. |
@@ -244,7 +284,7 @@ The black window shows the app's log; `data\qb.log` keeps a copy.
 ## 10. Command line (optional)
 
 `python -m qb2anki` (or start.bat) opens the app. Everything also works from the command line, using `.venv\Scripts\python.exe -m qb2anki <command>`:
-`run [--type auto|book|screenshot]`, `export [--all] [--anki-media PATH]`, `status`, `rebuild`, `fill`, `proofread`,
+`run [--type auto|book|screenshot]`, `export [--all] [--anki-media PATH]`, `status`, `rebuild`, `fill`, `proofread`, `check [--all]`,
 `keys [--check] [--reset]`, `doctor`, `models [--test]`, `bundle`.
 
 ## 11. What is in this folder

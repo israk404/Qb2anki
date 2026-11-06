@@ -59,7 +59,8 @@ def restore_db(cfg, db, name: str) -> None:
         src.backup(db.conn)
     finally:
         src.close()
-    db._ensure_columns("questions", {"answer_source": "TEXT", "explanation_original": "TEXT", "proof_json": "TEXT"})
+    db._ensure_columns("questions", {"answer_source": "TEXT", "explanation_original": "TEXT", "proof_json": "TEXT",
+                                     "fact_json": "TEXT"})
     db._ensure_columns("photos", {"profile": "TEXT", "exam_hint": "TEXT", "reader": "TEXT", "kind": "TEXT"})
     db.commit()
 
