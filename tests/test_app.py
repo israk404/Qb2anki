@@ -84,6 +84,19 @@ class AppTest(unittest.TestCase):
         self.assertIn(self.req("/download/../data/qb.sqlite", token=False)[0], (403, 404))
 
     # -- upload and inbox
+    def test_a_browser_that_hangs_up_early_is_not_an_error(self):
+        class Gone:
+            def write(self, b):
+                raise ConnectionAbortedError(10053, "aborted by the software in your host machine")
+            def flush(self):
+                pass
+        H = make_handler(self.app)
+        h = H.__new__(H)
+        h.wfile, h.request_version, h.requestline, h.command = Gone(), "HTTP/1.1", "GET /api/job HTTP/1.1", "GET"
+        h.client_address, h.close_connection = ("127.0.0.1", 1), False
+        h._json({"status": "none"})                                   # must not raise
+        self.assertTrue(h.close_connection)
+
     def test_upload_lands_in_the_right_folder_and_rejects_non_images(self):
         s, r = self.upload("my photo.png", "screenshot", "BCS 45")
         self.assertEqual((s, r["path"]), (200, "screenshot/BCS 45/my photo.png"))

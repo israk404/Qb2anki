@@ -8,6 +8,10 @@
   on other apps the colours show at once. Works inside the Basic note type, so nothing has to be set up in Anki and re-importing
   with "Update" keeps study progress.
 
+### Fixed
+- No more "ConnectionAbortedError [WinError 10053]" messages in the app window when the browser reloads or closes a page
+  while the app is answering. They were harmless; now they are ignored quietly.
+
 ## 1.2.0 — 2026-11-06
 
 ### Added
